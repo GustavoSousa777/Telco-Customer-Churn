@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ipynb_checkpoints/
+mlruns/
+mlflow.db
+.env
+.DS_Store
+# model/model.joblib e model/metadata.json ficam versionados de proposito (o deploy usa os dois)

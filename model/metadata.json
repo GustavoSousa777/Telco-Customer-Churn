@@ -1,0 +1,56 @@
+{
+  "model": "XGBoost (Optuna)",
+  "threshold": 0.511875331401825,
+  "threshold_rule": "maior corte com recall OOF >= 0.8 no treino",
+  "threshold_oof": {
+    "recall": 0.8,
+    "precision": 0.5292035398230088
+  },
+  "test_metrics_at_threshold": {
+    "roc_auc": 0.848492598620476,
+    "pr_auc": 0.6610695706908362,
+    "recall": 0.7994652406417112,
+    "precision": 0.5128644939965694
+  },
+  "params": {
+    "n_estimators": 380,
+    "learning_rate": 0.042391376805302236,
+    "max_depth": 2,
+    "min_child_weight": 10,
+    "subsample": 0.6379679919943347,
+    "colsample_bytree": 0.6914050302113515,
+    "gamma": 3.7700194150442408,
+    "reg_alpha": 6.452509986240249,
+    "reg_lambda": 1.6347113042007797,
+    "scale_pos_weight": 2.768561872909699
+  },
+  "n_train": 5634,
+  "n_test": 1409,
+  "features": [
+    "gender",
+    "SeniorCitizen",
+    "Partner",
+    "Dependents",
+    "tenure",
+    "PhoneService",
+    "MultipleLines",
+    "InternetService",
+    "OnlineSecurity",
+    "OnlineBackup",
+    "DeviceProtection",
+    "TechSupport",
+    "StreamingTV",
+    "StreamingMovies",
+    "Contract",
+    "PaperlessBilling",
+    "PaymentMethod",
+    "MonthlyCharges",
+    "TotalCharges"
+  ],
+  "trained_at": "2026-10-30T01:54:05+00:00",
+  "versions": {
+    "scikit-learn": "1.8.0",
+    "xgboost": "3.4.1",
+    "pandas": "3.0.2"
+  }
+}

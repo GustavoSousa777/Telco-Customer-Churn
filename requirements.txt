@@ -1,0 +1,9 @@
+# Runtime (Space/Docker). Versoes iguais as do treino, o model.joblib depende delas.
+pandas==3.0.2
+scikit-learn==1.8.0
+xgboost==3.4.1
+joblib==1.5.3
+pydantic==2.14.2
+fastapi==0.162.0
+uvicorn==0.54.0
+gradio==6.31.0

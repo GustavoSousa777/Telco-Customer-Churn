@@ -1,82 +1,106 @@
-# Previsão de Churn de Clientes
+# Telco Customer Churn: modelo em produção
 
-Projeto de machine learning para prever o cancelamento de clientes (churn) em uma empresa de telecomunicações, com base no dataset Telco Customer Churn.
+Previsão de cancelamento de clientes de telecom, do notebook ao serviço no ar: validação de dados, pipeline único, tracking com MLflow, API FastAPI, interface Gradio e container Docker, com o modelo publicado no Hugging Face Hub.
 
-## Contexto de Negócio
+- **Demo (app no ar):** `COLE_AQUI_A_URL_DO_APP`
+- **Modelo no Hugging Face Hub:** https://huggingface.co/GustavoSousa/telco-churn-xgboost
+- **Vídeo:** `COLE_AQUI_O_LINK_DO_VIDEO`
 
-A empresa enfrenta dificuldade na fidelização de clientes, com um número elevado de cancelamentos. O objetivo deste projeto é desenvolver um modelo preditivo capaz de identificar os clientes mais propensos a cancelar, permitindo a criação de campanhas e estratégias de retenção direcionadas.
+## Problema de negócio
 
-O erro mais custoso para o negócio é o falso negativo, ou seja, deixar de identificar um cliente que de fato irá cancelar. Por isso, o recall da classe Churn foi definido como a métrica prioritária de avaliação, à frente da acurácia geral.
+Perder um cliente custa mais do que fazer uma oferta de retenção para quem ia ficar. Por isso o modelo é calibrado para **capturar cerca de 80% dos clientes que vão cancelar**, aceitando que parte dos alertas serão falsos positivos.
 
-## Dataset
+## Fluxo
 
-O projeto utiliza o dataset público Telco Customer Churn (`WA_Fn-UseC_-Telco-Customer-Churn.csv`), com 7043 registros de clientes e 21 colunas, incluindo dados demográficos, contratação de serviços, forma de pagamento e a variável alvo Churn.
+```mermaid
+flowchart LR
+    A[CSV bruto] --> B[validate.py]
+    B --> C[train.py]
+    C --> D[(model.joblib + metadata.json)]
+    C --> E[MLflow]
+    D --> F[FastAPI /predict]
+    F --> G[Gradio /ui]
+    D --> I[Hugging Face Hub]
+    H[GitHub Actions] -->|pytest| F
+    F --> J[Container Docker no host]
+```
 
-## Estrutura do Projeto
+## Modelo
+
+XGBoost com hiperparâmetros otimizados via Optuna (50 trials, PR-AUC em validação cruzada). O pipeline salvo recebe as **colunas brutas** e faz sozinho a limpeza, o one-hot, a padronização e a predição, então treino e inferência não divergem.
+
+**Resultados no conjunto de teste (1.409 clientes), no corte de decisão escolhido:**
+
+| Métrica | Valor |
+|---|---|
+| Recall (churn) | 0,799 |
+| Precisão (churn) | 0,513 |
+| ROC-AUC | 0,848 |
+| PR-AUC | 0,661 |
+
+**Por que XGBoost.** Na validação cruzada aninhada, o XGBoost teve o melhor PR-AUC (0,672 ± 0,018), à frente de Random Forest (0,666) e Regressão Logística (0,661). A diferença para os outros dois fica dentro do ruído (os intervalos do bootstrap no teste contêm zero). O XGBoost foi mantido por ter as melhores médias em ROC-AUC e PR-AUC, e a Regressão Logística continua uma alternativa mais simples de explicar.
+
+**Por que esse corte.** O corte (0,512) é o maior valor cujo recall out-of-fold no treino ainda atinge 0,80. Ele é calculado no treino e salvo em `model/metadata.json`, e a API lê esse arquivo. O corte nunca foi ajustado olhando o conjunto de teste.
+
+## Como rodar localmente
+
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements-dev.txt
+
+python -m src.train          # treina, salva em model/ e registra no MLflow
+mlflow ui --backend-store-uri sqlite:///mlflow.db    # http://localhost:5000
+python -m pytest -q
+uvicorn src.app.main:app --port 7860                 # /docs e /ui
+```
+
+Docker:
+
+```bash
+docker build -t telco-churn .
+docker run --rm -p 7860:7860 telco-churn
+```
+
+Publicar o modelo no Hugging Face Hub (precisa de um token de escrita na variável `HF_TOKEN`):
+
+```bash
+python -m src.publish_model --repo-id GustavoSousa/telco-churn-xgboost --github-url https://github.com/GustavoSousa777/Telco-Customer-Churn
+```
+
+## API
+
+```bash
+curl -X POST localhost:7860/predict -H "Content-Type: application/json" -d '{
+  "gender": "Female", "SeniorCitizen": 0, "Partner": "No", "Dependents": "No",
+  "tenure": 2, "PhoneService": "Yes", "MultipleLines": "No",
+  "InternetService": "Fiber optic", "OnlineSecurity": "No", "OnlineBackup": "No",
+  "DeviceProtection": "No", "TechSupport": "No", "StreamingTV": "No",
+  "StreamingMovies": "No", "Contract": "Month-to-month", "PaperlessBilling": "Yes",
+  "PaymentMethod": "Electronic check", "MonthlyCharges": 80.5
+}'
+```
+
+Resposta: `{"churn_probability": 0.864, "churn_prediction": true, "threshold": 0.5119}`. `TotalCharges` é opcional (se omitido, usa `tenure * MonthlyCharges`).
+
+## Estrutura
 
 ```
-.
-├── Churn.ipynb
-└── data/
-    └── WA_Fn-UseC_-Telco-Customer-Churn.csv
+src/features.py        contrato de colunas e valores aceitos
+src/data/validate.py   validação do CSV bruto
+src/data/clean.py      limpeza usada no treino e na API
+src/pipeline.py        Pipeline único (limpeza, pré-processamento, XGBoost)
+src/train.py           treino, corte, métricas e MLflow
+src/app/               API FastAPI e interface Gradio
+tests/                 dados, modelo e API
+src/publish_model.py   publica o modelo e o model card no Hugging Face Hub
+model/                 model.joblib e metadata.json (versionados)
+notebooks/             análise e tuning originais
 ```
 
-## Etapas do Projeto
+## Monitoramento
 
-1. Entendimento do problema e contexto de negócio
-2. Coleta e carregamento dos dados
-3. Análise exploratória dos dados (EDA), incluindo auditoria de qualidade, análise univariada, verificação de outliers e análise bivariada
-4. Pré-processamento, com tratamento de valores ausentes, encoding de variáveis categóricas, padronização de variáveis numéricas e balanceamento de classes com SMOTE
-5. Treinamento dos modelos de Regressão Logística e Random Forest
-6. Avaliação e comparação dos modelos
-7. Interpretação dos coeficientes e considerações finais
+Cada predição gera uma linha JSON nos logs do host (contrato, tenure, probabilidade, decisão, latência), sem dados pessoais completos. Para detectar drift, o plano é comparar periodicamente a distribuição das entradas em produção (tenure, MonthlyCharges, contrato, tipo de internet) com a do treino, e a taxa de alertas com a taxa esperada. Se divergirem de forma persistente, retreinar com dados novos. Hoje o monitoramento é por logs, e relatórios automáticos (por exemplo com Evidently) são o próximo passo.
 
-## Principais Achados da Análise Exploratória
+## Limitações
 
-* A variável alvo é desbalanceada: 73,46% dos clientes não cancelam e 26,54% cancelam.
-* Clientes que cancelam permanecem por menos tempo (mediana de 10 meses contra 38 meses) e pagam mensalidades mais altas.
-* O tipo de contrato é um forte diferenciador: contratos mensais têm taxa de churn de 42,7%, contra 11,3% em contratos de 1 ano e 2,8% em contratos de 2 anos.
-* Clientes com internet via fibra ótica cancelam mais (41,9%) do que clientes com DSL (18,9%) ou sem internet (7,4%).
-* A ausência de serviços adicionais, como suporte técnico e segurança online, está associada a taxas de churn mais altas.
-* O pagamento por Electronic check concentra a maior taxa de churn entre os métodos disponíveis.
-
-## Metodologia
-
-Os dados foram divididos em treino e teste (80/20) mantendo a proporção da variável alvo. Valores ausentes em TotalCharges foram tratados com a mediana calculada apenas no conjunto de treino, evitando vazamento de dados. Variáveis categóricas foram convertidas com one hot encoding e variáveis numéricas foram padronizadas com StandardScaler. O balanceamento de classes com SMOTE foi aplicado exclusivamente no conjunto de treino, preservando a distribuição original no conjunto de teste.
-
-## Modelos Avaliados
-
-Foram treinados e comparados dois modelos de classificação:
-
-* Regressão Logística
-* Random Forest
-
-| Métrica | Regressão Logística | Random Forest |
-|---|---|---|
-| Recall Churn | 0,71 | 0,62 |
-| ROC AUC | 0,819 | 0,820 |
-
-## Conclusão
-
-Considerando que o custo de não identificar um cancelamento é maior do que o custo de uma ação de retenção desnecessária, a Regressão Logística foi escolhida como o modelo mais adequado para esta aplicação, por apresentar maior recall na classe Churn. A interpretação dos coeficientes confirma os achados da análise exploratória: contrato mensal, internet via fibra ótica, pagamento por Electronic check e ausência de serviços como segurança online e suporte técnico aumentam a chance de cancelamento, enquanto maior tempo de permanência e contratos mais longos reduzem essa chance.
-
-## Próximos Passos
-
-* Testar outros algoritmos de classificação
-* Ajustar o limiar de decisão para aumentar o recall da classe Churn
-* Avaliar validação cruzada para checar a estabilidade das métricas
-* Incorporar o custo de cada tipo de erro em uma análise de retorno financeiro das campanhas de retenção
-
-## Tecnologias Utilizadas
-
-* Python
-* pandas e numpy
-* matplotlib e seaborn
-* scikit learn
-* imbalanced learn (SMOTE)
-
-## Como Executar
-
-1. Instale as dependências: pandas, numpy, matplotlib, seaborn, scikit-learn, imbalanced-learn
-2. Coloque o arquivo `WA_Fn-UseC_-Telco-Customer-Churn.csv` na pasta `data/`
-3. Execute o notebook `Churn.ipynb` célula por célula
+O dataset é público e de um único período, então o modelo não captura sazonalidade nem mudanças de preço. A precisão de 51% significa que quase metade dos alertas é falso positivo, o que só compensa se a ação de retenção for barata.
