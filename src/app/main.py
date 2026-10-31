@@ -7,7 +7,7 @@ from fastapi import FastAPI
 
 from src.app.schemas import Customer, Prediction
 from src.app.service import load_artifacts, predict
-from src.app.ui import build_ui
+from src.app.ui import CSS, HEAD, THEME, build_ui
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 log = logging.getLogger("churn-api")
@@ -43,4 +43,4 @@ def predict_endpoint(customer: Customer):
     return result
 
 
-app = gr.mount_gradio_app(app, build_ui(), path="/ui")
+app = gr.mount_gradio_app(app, build_ui(), path="/ui", theme=THEME, css=CSS, head=HEAD, footer_links=[])
