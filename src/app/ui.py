@@ -191,7 +191,7 @@ HEADER_HTML = f"""
 <section id="intro">
   <div>
     <h1>Descubra quais clientes <span>estão prestes a cancelar</span></h1>
-    <p>Este site usa um modelo de machine learning, treinado com dados reais de uma operadora de telecomunicações, para estimar a probabilidade de um cliente cancelar o serviço (churn). Preencha os dados abaixo e veja o risco na hora.</p>
+    <p>O site usa um modelo de machine learning, treinado com dados reais de uma operadora de telecomunicações, para estimar a probabilidade de um cliente cancelar o serviço (churn). Preencha os dados abaixo e veja o risco na hora.</p>
     <ul>
       <li>Modelo XGBoost com ROC-AUC de 0,85 e recall de 80% no teste</li>
       <li>Resultado em tempo real, calculado por uma API na nuvem</li>
