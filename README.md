@@ -1,76 +1,125 @@
-# Telco Customer Churn | Machine Learning em produção
+# Telco Customer Churn
 
-![Python](https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white)
-![XGBoost](https://img.shields.io/badge/XGBoost-Machine%20Learning-orange?style=flat-square)
-![MLflow](https://img.shields.io/badge/MLflow-0194E2?style=flat-square&logo=mlflow&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)
-![Gradio](https://img.shields.io/badge/Gradio-FF7C00?style=flat-square)
-![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white)
-![Azure](https://img.shields.io/badge/Microsoft%20Azure-0078D4?style=flat-square)
-![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-2088FF?style=flat-square&logo=githubactions&logoColor=white)
+Projeto de Ciência de Dados para prever o cancelamento de clientes de telecomunicações. O modelo XGBoost recebe o perfil do cliente e retorna a probabilidade de churn e uma classificação de risco, apoiando estratégias de retenção.
 
-Projeto end-to-end de Ciência de Dados para previsão de cancelamento de clientes de telecomunicações. Da experimentação em notebooks à disponibilização do modelo em produção, com validação de dados, pipeline de Machine Learning, rastreamento de experimentos, API REST, interface interativa e containerização.
+**Em produção no Microsoft Azure:** [Testar aplicação](https://telco-churn-api.niceocean-f7122f5d.brazilsouth.azurecontainerapps.io/ui/?__theme=dark)
 
-## Demonstração da aplicação
+**Modelo publicado:** [Hugging Face Hub](https://huggingface.co/GustavoSousa/telco-churn-xgboost)
 
-A aplicação permite informar o perfil de um cliente e obter a probabilidade de churn e a decisão do modelo em tempo real.
+## Destaques
 
-[![Testar aplicação em produção](https://img.shields.io/badge/Testar%20aplica%C3%A7%C3%A3o-Microsoft%20Azure-0078D4?style=for-the-badge)](https://telco-churn-api.niceocean-f7122f5d.brazilsouth.azurecontainerapps.io/ui/?__theme=dark)
-[![Hugging Face](https://img.shields.io/badge/Modelo-Hugging%20Face-FFD21E?style=for-the-badge)](https://huggingface.co/GustavoSousa/telco-churn-xgboost)
+- **Modelagem:** comparação entre Regressão Logística, Random Forest e XGBoost, com otimização via Optuna.
+- **Resultados:** recall de 79,9%, ROC-AUC de 0,848 e PR-AUC de 0,661 em 1.409 clientes de teste.
+- **Decisão de negócio:** threshold selecionado para identificar cerca de 80% dos clientes que cancelam.
+- **Ciclo completo:** pipeline Python, MLflow, FastAPI, Gradio, testes, GitHub Actions, Docker e Azure Container Apps.
 
-### Vídeo demonstrativo
+## Demonstração
 
-[![Prévia da demonstração da aplicação](assets/demo-preview.png)](assets/demo.mp4)
+<p align="center">
+  <a href="assets/demo.mp4"><img src="assets/demo.gif" alt="Demonstração da aplicação de previsão de churn em produção" width="850"></a>
+</p>
 
-[Assistir ou baixar o vídeo completo (MP4)](assets/demo.mp4)
+Gravação da aplicação em produção. [Assistir ao vídeo completo (MP4)](assets/demo.mp4).
 
-### Resultados em destaque
+## Por que fiz isso
 
-| Modelo | Recall (churn) | ROC-AUC | PR-AUC |
-|---|---:|---:|---:|
-| XGBoost | 79,9% | 0,848 | 0,661 |
+O cancelamento de clientes é um problema de classificação com impacto direto na receita. A proposta é identificar clientes com maior risco de churn antes do cancelamento, permitindo que a empresa priorize ações de retenção.
 
-Resultados no conjunto de teste de 1.409 clientes.
+Neste cenário, assume-se que perder um cliente custa mais do que realizar uma ação de retenção desnecessária. Por isso, o modelo prioriza recall da classe churn, aceitando parte dos falsos positivos. O custo e a efetividade da intervenção precisam ser validados pelo negócio.
 
-## Problema de negócio
+Também é um projeto de portfólio: o objetivo foi percorrer o ciclo de vida de Machine Learning, da análise exploratória e experimentação até a disponibilização do modelo em uma aplicação real, com testes e rastreamento de experimentos.
 
-Neste cenário, assume-se que perder um cliente custa mais do que oferecer uma ação de retenção a quem permaneceria. Por isso o modelo é calibrado para **capturar cerca de 80% dos clientes que vão cancelar**, aceitando que parte dos alertas serão falsos positivos.
+## Como funciona
 
-## Arquitetura e fluxo de Machine Learning
+![Arquitetura de treinamento e inferência](assets/arquitetura.svg)
 
-```mermaid
-flowchart LR
-    A[CSV bruto] --> B[validate.py]
-    B --> C[train.py]
-    C --> D[(model.joblib + metadata.json)]
-    C --> E[MLflow]
-    D --> F[FastAPI /predict]
-    F --> G[Gradio /ui]
-    D --> I[Hugging Face Hub]
-    H[GitHub Actions] -->|pytest| F
-    F --> J[Container Docker no Azure]
-```
+1. O CSV bruto passa pela validação de dados e pelo contrato de features.
+2. A análise e a experimentação nos notebooks orientam a seleção do modelo. A limpeza e o pré-processamento são incorporados ao pipeline Python.
+3. O treinamento otimiza hiperparâmetros, define o corte de decisão e registra os experimentos no MLflow.
+4. O pipeline treinado e seus metadados são salvos em `model/`, permitindo reutilizar as mesmas transformações na inferência.
+5. A FastAPI recebe os dados do cliente e retorna a probabilidade de churn, a decisão e o threshold. O Gradio disponibiliza uma interface para testar o modelo.
+
+A separação entre treinamento e inferência evita que seja necessário executar notebooks ou retreinar o modelo a cada requisição.
 
 ## Modelagem e avaliação
 
-XGBoost com hiperparâmetros otimizados via Optuna (50 trials, PR-AUC em validação cruzada). O pipeline salvo recebe as **colunas brutas** e faz sozinho a limpeza, o one-hot, a padronização e a predição, então treino e inferência não divergem.
+### Seleção do modelo
 
-**Resultados no conjunto de teste (1.409 clientes), no corte de decisão escolhido:**
+Foram comparados três algoritmos em validação cruzada aninhada. A otimização do XGBoost foi realizada com Optuna (50 trials), utilizando PR-AUC como objetivo, uma métrica relevante para problemas com classes desbalanceadas.
 
-| Métrica | Valor |
+| Modelo | PR-AUC média na validação cruzada |
+|---|---:|
+| XGBoost | **0,672 ± 0,018** |
+| Random Forest | 0,666 |
+| Regressão Logística | 0,661 |
+
+O XGBoost foi selecionado por apresentar as melhores médias de ROC-AUC e PR-AUC. Entretanto, os intervalos de bootstrap das diferenças no teste contêm zero, portanto não há evidência suficiente para afirmar superioridade estatística. A Regressão Logística continua sendo uma alternativa mais simples de interpretar.
+
+### Resultados no conjunto de teste
+
+Avaliação em 1.409 clientes, com o corte definido exclusivamente a partir dos dados de treinamento.
+
+| Métrica | Resultado | Interpretação |
+|---|---:|---|
+| Recall (churn) | **79,9%** | Parcela dos cancelamentos reais identificada |
+| Precisão (churn) | 51,3% | Parcela dos alertas que corresponde a cancelamentos reais |
+| ROC-AUC | 0,848 | Capacidade de ordenar positivos acima de negativos |
+| PR-AUC | 0,661 | Desempenho na relação entre precisão e recall |
+| Threshold | 0,512 | Corte utilizado na decisão de classificação |
+
+### Por que não usar o corte padrão de 0,5?
+
+O corte foi escolhido como o maior valor cujo recall out-of-fold no treinamento ainda atingia 80%. Ele é salvo em `model/metadata.json` e utilizado pela API. O conjunto de teste não participou dessa escolha.
+
+### Consistência entre treino e produção
+
+O pipeline salvo recebe as colunas brutas e aplica a limpeza, one-hot encoding, padronização e predição. Dessa forma, as transformações usadas no treinamento são reutilizadas na API, reduzindo o risco de divergência entre treino e inferência.
+
+## Deploy no Azure
+
+A aplicação está disponibilizada no Azure Container Apps. A API FastAPI e a interface Gradio são empacotadas em Docker, mantendo as dependências do ambiente de execução.
+
+| Componente | Responsabilidade |
 |---|---|
-| Recall (churn) | 0,799 |
-| Precisão (churn) | 0,513 |
-| ROC-AUC | 0,848 |
-| PR-AUC | 0,661 |
+| Azure Container Apps | Hospedagem da aplicação em produção |
+| Docker | Empacotamento do ambiente e das dependências |
+| FastAPI | Serviço de inferência e documentação da API |
+| Gradio | Interface para informar o perfil e visualizar o resultado |
+| Hugging Face Hub | Distribuição do modelo e seu model card |
 
-**Por que XGBoost.** Na validação cruzada aninhada, o XGBoost teve o melhor PR-AUC (0,672 ± 0,018), à frente de Random Forest (0,666) e Regressão Logística (0,661). A diferença para os outros dois fica dentro do ruído (os intervalos do bootstrap no teste contêm zero). O XGBoost foi mantido por ter as melhores médias em ROC-AUC e PR-AUC, e a Regressão Logística continua uma alternativa mais simples de explicar.
+O navegador acessa a interface `/ui`, os dados são encaminhados para inferência e o pipeline retorna o risco de churn. O threshold registrado nos metadados determina a classificação final. Cada predição gera um registro nos logs da aplicação.
 
-**Por que esse corte.** O corte (0,512) é o maior valor cujo recall out-of-fold no treino ainda atinge 0,80. Ele é calculado no treino e salvo em `model/metadata.json`, e a API lê esse arquivo. O corte nunca foi ajustado olhando o conjunto de teste.
+**Acessos públicos:** [Interface em produção](https://telco-churn-api.niceocean-f7122f5d.brazilsouth.azurecontainerapps.io/ui/?__theme=dark) · [Modelo no Hugging Face](https://huggingface.co/GustavoSousa/telco-churn-xgboost).
 
-## Execução local
+## Experimentos, testes e CI
+
+O MLflow registra os parâmetros, métricas e artefatos associados ao treinamento. O pipeline e os metadados são versionados para permitir a reutilização do modelo.
+
+Os testes automatizados com pytest abrangem dados, modelo e API. O GitHub Actions executa os testes como parte da integração contínua, e o Docker permite reproduzir o ambiente de execução.
+
+## Stack
+
+| Parte | Tecnologia |
+|---|---|
+| Linguagem | Python |
+| Modelagem | Scikit-learn e XGBoost |
+| Otimização | Optuna |
+| Experimentos | MLflow |
+| API | FastAPI |
+| Interface | Gradio |
+| Testes e CI | pytest e GitHub Actions |
+| Containerização | Docker |
+| Cloud | Azure Container Apps |
+| Distribuição do modelo | Hugging Face Hub |
+
+## Como rodar localmente
+
+Todos os comandos partem da raiz do repositório. Esta seção é destinada a quem deseja reproduzir o projeto, não é necessária para testar a aplicação publicada.
 
 ```bash
+git clone https://github.com/GustavoSousa777/Telco-Customer-Churn.git
+cd Telco-Customer-Churn
+
 python -m venv .venv
 source .venv/bin/activate  # Linux/macOS
 # Windows PowerShell: .\.venv\Scripts\Activate.ps1
@@ -87,7 +136,7 @@ Em outro terminal, para acompanhar os experimentos:
 mlflow ui --backend-store-uri sqlite:///mlflow.db
 ```
 
-MLflow: http://localhost:5000. Interface: http://localhost:7860/ui. Documentação da API: http://localhost:7860/docs.
+O MLflow roda na porta 5000. Na porta 7860, a API disponibiliza `/ui` (interface) e `/docs` (documentação interativa). Esses endereços são locais ao ambiente de desenvolvimento.
 
 ### Docker
 
@@ -117,27 +166,47 @@ curl -X POST localhost:7860/predict -H "Content-Type: application/json" -d '{
 
 Resposta: `{"churn_probability": 0.864, "churn_prediction": true, "threshold": 0.5119}`. `TotalCharges` é opcional (se omitido, usa `tenure * MonthlyCharges`).
 
-## Estrutura do repositório
+## Estrutura do projeto
 
-```
-assets/demo.mp4        vídeo demonstrativo
-assets/demo-preview.png prévia do vídeo
-src/features.py        contrato de colunas e valores aceitos
-src/data/validate.py   validação do CSV bruto
-src/data/clean.py      limpeza usada no treino e na API
-src/pipeline.py        Pipeline único (limpeza, pré-processamento, XGBoost)
-src/train.py           treino, corte, métricas e MLflow
-src/app/               API FastAPI e interface Gradio
-tests/                 dados, modelo e API
-src/publish_model.py   publica o modelo e o model card no Hugging Face Hub
-model/                 model.joblib e metadata.json (versionados)
-notebooks/             análise e tuning originais
+```text
+Telco-Customer-Churn/
+├── assets/
+│   ├── demo.gif                demonstração animada
+│   ├── demo.mp4                gravação completa
+│   └── arquitetura.svg         diagrama do pipeline
+├── notebooks/                  análise e experimentação
+├── src/
+│   ├── features.py             contrato de entrada
+│   ├── data/
+│   │   ├── validate.py         validação dos dados
+│   │   └── clean.py            limpeza compartilhada
+│   ├── pipeline.py             pré-processamento e modelo
+│   ├── train.py                treinamento, threshold e MLflow
+│   ├── publish_model.py        publicação no Hugging Face
+│   └── app/                    FastAPI e Gradio
+├── model/
+│   ├── model.joblib            pipeline treinado
+│   └── metadata.json           metadados e corte de decisão
+├── tests/                      testes automatizados
+├── Dockerfile
+├── requirements-dev.txt
+└── README.md
 ```
 
-## Monitoramento e próximos passos
+## Monitoramento
 
 Cada predição gera uma linha JSON nos logs do host (contrato, tenure, probabilidade, decisão, latência), sem dados pessoais completos. Para detectar drift, o plano é comparar periodicamente a distribuição das entradas em produção (tenure, MonthlyCharges, contrato, tipo de internet) com a do treino, e a taxa de alertas com a taxa esperada. Se divergirem de forma persistente, retreinar com dados novos. Hoje o monitoramento é por logs, e relatórios automáticos (por exemplo com Evidently) são o próximo passo.
 
-## Limitações
+## Limitações conhecidas
 
 O dataset é público e de um único período, então o modelo não captura sazonalidade nem mudanças de preço. A precisão de 51,3% significa que quase metade dos alertas é falso positivo. A viabilidade da estratégia depende do custo da ação de retenção, da perda evitada e da efetividade da intervenção.
+
+## Próximos passos
+
+- Automatizar relatórios de drift, por exemplo com Evidently.
+- Acompanhar precisão e recall em produção quando os rótulos reais de cancelamento estiverem disponíveis.
+- Avaliar o custo e a efetividade das ações de retenção para revisar o threshold.
+
+## Autor
+
+Gustavo Sousa · [GitHub](https://github.com/GustavoSousa777) · [LinkedIn](https://linkedin.com/in/gustavosousa777)
